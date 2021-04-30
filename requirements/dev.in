@@ -1,0 +1,8 @@
+numpy
+scikit-image
+Pillow
+opencv-python
+pytorch
+pytorch-lightning
+wget
+matplotlib
