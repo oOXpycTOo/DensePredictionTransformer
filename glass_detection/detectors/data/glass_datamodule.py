@@ -1,6 +1,9 @@
 from glass_detection.detectors.data.base_dataset import BaseDataset
 from glass_detection.detectors.data.base_data_module import BaseDataModule
+
 import argparse
+
+import albumentations as A
 
 NUM_TRAIN = 100
 NUM_VAL = 10
@@ -23,8 +26,16 @@ class GlassSegmentationDataModule(BaseDataModule):
 
         self.dims = (3, self.height, self.width)
         self.output_dims = (1, self.height, self.width)
-        self.transform = 
-    
+        self.train_val_transform = A.Compose(
+            A.Resize(self.height, self.width)
+            A.HorizontalFlip(p=0.5),
+            A.ISONoise(),
+            A.ColorJitter()
+        )
+        self.test_transform = A.Compose(
+            A.Resize(self.height, self.width)
+        )
+
     @staticmethod
     def add_to_argparse(parser: argparse.ArgumentParser) -> None:
         BaseDataModule.add_to_argparse(parser)
@@ -41,8 +52,8 @@ class GlassSegmentationDataModule(BaseDataModule):
         if stage == 'fit' or stage is None:
             train_folder = self.data_folder / 'train'
             val_folder = self.data_folder / 'val'
-            self.data_train = GlassDataset(train_folder)
-            self.data_val = GlassDataset(val_folder)
+            self.data_train = GlassDataset(train_folder, transform=self.train_val_transform)
+            self.data_val = GlassDataset(val_folder, transform=self.train_val_transform)
 
         if stage == 'test' or stage is None:
             test_folder = self.data_folder / 'test'
@@ -53,3 +64,6 @@ class GlassSegmentationDataModule(BaseDataModule):
                 f'Image height: {self.image_height}\n',
                 f'Image width: {self.image_width}\n',
                 f'Data folder: {self.data_folder}\n')
+        if self.data_train is None and self.data_val is None and self.data_test is None:
+            return basic
+        return basic

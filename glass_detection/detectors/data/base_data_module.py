@@ -28,7 +28,7 @@ class BaseDataModule(pl.LightningDataModule):
 
     @classmethod
     def data_dirname(cls):
-        return Path(__file__).resolve().parents[3] / 'data'
+        return Path(__file__).resolve().parents[2] / 'data'
 
     @staticmethod
     def add_to_argparse(parser):
