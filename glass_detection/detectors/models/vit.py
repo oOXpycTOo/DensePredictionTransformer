@@ -3,19 +3,24 @@ import torch.nn as nn
 
 from .util import patchify, flatten_patches, TransformerLayer, SelfAttention, get_transformer_layers
 
+
+# TODO: To be implemented
+def convert_weights():
+    pass
+
 class ViT(nn.Module):
     def __init__(self,
-                height: int = 256,
-                width: int = 256,
+                height: int = 384,
+                width: int = 384,
                 patch_size: int = 16,
                 input_dim: int = 3,
-                hidden_dim: int = 512,
-                output_dim: int = 512,
-                n_layers: int = 4,
-                n_heads: int = 4,
-                mlp_dim: int = 1024,
-                attention_dropout: float = 0.1,
-                dropout: float = 0.1,
+                hidden_dim: int = 1024,
+                output_dim: int = 1000,
+                n_layers: int = 24,
+                n_heads: int = 16,
+                mlp_dim: int = 4096,
+                attention_dropout: float = 0.0,
+                dropout: float = 0.0,
                 reduction: str = 'token') -> None:
         super().__init__()
         self.height = height
@@ -45,14 +50,14 @@ class ViT(nn.Module):
             mlp_dim,
             attention_dropout,
             dropout)
-        self.encoded_norm = nn.LayerNorm(hidden_dim)
+        self.encoded_norm = nn.LayerNorm(hidden_dim, eps=1e-6)
         self.out = nn.Linear(hidden_dim, output_dim)
         torch.nn.init.zeros_(self.out.weight)
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         b, c, h, w = images.size()
         x_class = self.class_embedding.expand(b, 1, -1)
-        x_patch = self.patch_embedding(patches).flatten(2)
+        x_patch = self.patch_embedding(images).flatten(2).transpose(1, 2)  # (B, C, H, W) -> (B, C', H//P, W//P)
         x = torch.cat([x_class, x_patch], dim=1) + self.pos_embedding
         x = self.embedding_dropout(x)
         for layer in self.transformer_layers:
