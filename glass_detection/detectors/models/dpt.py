@@ -1,10 +1,8 @@
 from argparse import ArgumentParser, Namespace
-from pathlib import Path
-import timm
 import torch
 import torch.nn as nn
 
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List
 
 from .vit import get_vit_instance
 from .util import Reassemble, FeatureFusionBlock
@@ -20,8 +18,6 @@ N_CLASSES = 150
 
 
 class DensePredictionTransformer(nn.Module):
-    LAYER_ACTIVATIONS = []
-
     def __init__(self, data_config: Dict[str, Any], args: Namespace = None):
         super().__init__()
         args = vars(args) if args is not None else {}
@@ -42,7 +38,7 @@ class DensePredictionTransformer(nn.Module):
         n_patches_h = self.backbone.n_patches_h
         n_patches_w = self.backbone.n_patches_w
         scales = [4, 2, 1, 1/2.]  # TODO: Fix this hardcode
-
+        self.layer_activations = [None, None, None, None]
         self.reassemble_layers =\
             self.__get_reassemble_layers(n_patches_h,
                                          n_patches_w,
@@ -51,7 +47,7 @@ class DensePredictionTransformer(nn.Module):
                                          scales,
                                          redout_type)
         self.fusion_maps, self.fusion_layers =\
-            self.__get_fusion_layers(hidden_dim, features, scales, use_bn_in_fusion_layers)
+            self.__get_fusion_layers(hidden_dim, features, use_bn_in_fusion_layers)
 
         self.head = nn.Sequential(
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
@@ -86,7 +82,6 @@ class DensePredictionTransformer(nn.Module):
             self,
             hidden_dim: int,
             features: List[int],
-            scales: List[int],
             use_bn: bool = True) -> nn.Module:
         fusion_layers = []
         fusion_maps = []
@@ -97,14 +92,14 @@ class DensePredictionTransformer(nn.Module):
 
     def __register_backbone_hooks(self, layers: List[int]) -> None:
         for i, layer_num in enumerate(layers):
-            hook_fn = get_activation_hook(i)
+            hook_fn = get_activation_hook(self, i)
             self.backbone.transformer_layers[layer_num-1].register_forward_hook(hook_fn)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         self.backbone(x)
         outs = []
         for i in range(4):
-            outs.append(self.reassemble_layers[i](self.LAYER_ACTIVATIONS[i]))
+            outs.append(self.reassemble_layers[i](self.layer_activations[i]))
             outs[i] = self.fusion_maps[i](outs[i])
         outs[-1] = self.fusion_layers[-1](outs[-1])
         for i in reversed(range(3)):
@@ -128,7 +123,7 @@ class DensePredictionTransformer(nn.Module):
             dpt_hook_layers=hook_layers,
             dpt_features=features,
             dpt_bn_fusion_layers=bn_fusion_layers,
-            vit_model=VIT_MODEL)
+            vit_model=vit_model)
         data_config = {'height': height, 'width': width, 'patch_size': patch_size, 'n_classes': n_classes}
         return DensePredictionTransformer(data_config, args)
 
@@ -143,7 +138,7 @@ class DensePredictionTransformer(nn.Module):
         parser.add_argument('--vit_model', type=str, default=VIT_MODEL)
 
 
-def get_activation_hook(layer_name: int) -> Callable:
+def get_activation_hook(outer_model: nn.Module, layer_num: int) -> Callable:
     def activations_hook(model: nn.Module, input: torch.Tensor, output: torch.Tensor) -> None:
-        DensePredictionTransformer.LAYER_ACTIVATIONS.append(output)
+        outer_model.layer_activations[layer_num] = output
     return activations_hook

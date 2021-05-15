@@ -9,8 +9,8 @@ from torch.utils.data import ConcatDataset, DataLoader
 from .base_dataset import BaseDataset
 
 
-BATCH_SIZE=128
-NUM_WORKERS=0
+BATCH_SIZE=10
+NUM_WORKERS=1
 
 
 class BaseDataModule(pl.LightningDataModule):

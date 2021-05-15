@@ -1,6 +1,7 @@
 import argparse
 from typing import Any, Optional, Union
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 from torchmetrics import Metric, AveragePrecision
@@ -30,7 +31,7 @@ class MeanAveragePrecision(AveragePrecision):
 
     def compute(self) -> torch.Tensor:
         avg_precision = super().compute()
-        return torch.mean(torch.Tensor(avg_precision))
+        return torch.Tensor(np.nanmean(avg_precision))
 
 
 class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
@@ -84,8 +85,9 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         x, y = batch
         logits = self(x)
         loss = self.loss_fn(logits, y)
+        probs = torch.softmax(logits, dim=1)
         self.log('train_loss', loss)
-        self.train_map(logits, y)
+        self.train_map(probs, y)
         self.log('train_mAP', self.train_map, on_step=False, on_epoch=True)
         return loss
 
@@ -93,12 +95,14 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         x, y = batch
         logits = self(x)
         loss = self.loss_fn(logits, y)
+        probs = torch.softmax(logits, dim=1)
         self.log('val_loss', loss, prog_bar=True)
-        self.val_map(logits, y)
+        self.val_map(probs, y)
         self.log('val_mAP', self.val_map, on_step=False, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):  # pylint: disable=unused-argument
         x, y = batch
         logits = self(x)
-        self.test_acc(logits, y)
-        self.log('test_mAP', self.test_mAP, on_step=False, on_epoch=True)
+        probs = torch.softmax(logits, dim=1)
+        self.test_map(probs, y)
+        self.log('test_mAP', self.test_map, on_step=False, on_epoch=True)
