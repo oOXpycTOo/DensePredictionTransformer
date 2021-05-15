@@ -1,10 +1,10 @@
 import argparse
-from typing import Any, Optional, Union
+from typing import Optional
 
-import numpy as np
 import pytorch_lightning as pl
 import torch
-from torchmetrics import Metric, AveragePrecision
+from torchmetrics import AveragePrecision
+import wandb
 
 
 # Define default CMD arguments
@@ -30,8 +30,10 @@ class MeanAveragePrecision(AveragePrecision):
         )
 
     def compute(self) -> torch.Tensor:
-        avg_precision = super().compute()
-        return torch.Tensor(np.nanmean(avg_precision))
+        avg_precision = torch.Tensor(super().compute())
+        total = torch.nansum(avg_precision)
+        count = (~torch.isnan(avg_precision)).sum()
+        return total / count if count != 0 else torch.Tensor([0.], device=avg_precision.device)
 
 
 class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
@@ -85,10 +87,7 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         x, y = batch
         logits = self(x)
         loss = self.loss_fn(logits, y)
-        probs = torch.softmax(logits, dim=1)
         self.log('train_loss', loss)
-        self.train_map(probs, y)
-        self.log('train_mAP', self.train_map, on_step=False, on_epoch=True)
         return loss
 
     def validation_step(self, batch, batch_idx):  # pylint: disable=unused-argument
@@ -96,6 +95,13 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         logits = self(x)
         loss = self.loss_fn(logits, y)
         probs = torch.softmax(logits, dim=1)
+        pred_mask = torch.argmax(logits[0], dim=0) * 255 // logits.shape[1]
+        true_mask = y[0] * 255 // logits.shape[1]
+        try:
+            self.logger.experiment.log({'val_pred_mask': [wandb.Image(pred_mask, caption='Predicted mask')],
+                                        'val_true_mask': [wandb.Image(true_mask, caption='True mask')]})
+        except AttributeError:
+            pass
         self.log('val_loss', loss, prog_bar=True)
         self.val_map(probs, y)
         self.log('val_mAP', self.val_map, on_step=False, on_epoch=True, prog_bar=True)
@@ -105,4 +111,4 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         logits = self(x)
         probs = torch.softmax(logits, dim=1)
         self.test_map(probs, y)
-        self.log('test_mAP', self.test_map, on_step=False, on_epoch=True)
+        self.log('test_mAP', self.test_map, on_step=False, on_epoch=True, prog_bar=True)

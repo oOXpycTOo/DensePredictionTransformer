@@ -21,8 +21,11 @@ class GlassSegmentationDataset(BaseDataset):
         self.image_folder = data_folder / 'images'
         self.mask_folder = data_folder / 'masks'
         self.data = files
-        masks_files = set(os.listdir(self.mask_folder))
-        self.targets = [file if file in masks_files else '' for file in files]
+        masks_files = set([file[:-4] for file in os.listdir(self.mask_folder)])
+        self.targets = [file[:-4] + '.png' if file[:-4] in masks_files else '' for file in files]
+
+    def __len__(self) -> int:
+        return len(self.data)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         image_filename = self.data[idx]
