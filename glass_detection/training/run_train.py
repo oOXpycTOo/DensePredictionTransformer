@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 import wandb
 
 from detectors import lit_models
+from detectors.callbacks.wandb_callbacks import ImageCallback
 
 
 def _import_class(module_and_class_name: str) -> type:
@@ -67,6 +68,9 @@ def main():
         filename='{epoch:03d}-{val_loss:.3f}-{val_mAP:.3f}', monitor='val_loss', mode='min'
     )
     callbacks = [early_stopping_callback, model_checkpoint_callback]
+    if args.wandb:
+        image_callback = ImageCallback(args)
+        callbacks.append(image_callback)
     # args.weights_summary = 'full'
     trainer = pl.Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger, weights_save_path='training/logs')
 

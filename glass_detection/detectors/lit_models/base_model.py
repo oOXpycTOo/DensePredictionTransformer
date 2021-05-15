@@ -4,7 +4,6 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 from torchmetrics import AveragePrecision
-import wandb
 
 
 # Define default CMD arguments
@@ -95,13 +94,6 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         logits = self(x)
         loss = self.loss_fn(logits, y)
         probs = torch.softmax(logits, dim=1)
-        pred_mask = torch.argmax(logits[0], dim=0) * 255 // logits.shape[1]
-        true_mask = y[0] * 255 // logits.shape[1]
-        try:
-            self.logger.experiment.log({'val_pred_mask': [wandb.Image(pred_mask, caption='Predicted mask')],
-                                        'val_true_mask': [wandb.Image(true_mask, caption='True mask')]})
-        except AttributeError:
-            pass
         self.log('val_loss', loss, prog_bar=True)
         self.val_map(probs, y)
         self.log('val_mAP', self.val_map, on_step=False, on_epoch=True, prog_bar=True)
