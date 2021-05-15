@@ -1,14 +1,14 @@
-from argparse import ArgumentError, Namespace
+from argparse import ArgumentError, ArgumentParser, Namespace
 import json
 from pathlib import Path
-from typing import Dict, Union
+from typing import Any, Dict, Union
 
 import matplotlib.pyplot as plt
 import torch
 from torch.functional import align_tensors
 import torch.nn as nn
 
-from .util import patchify, flatten_patches, TransformerLayer, SelfAttention, get_transformer_layers
+from .util import TransformerLayer, SelfAttention, get_transformer_layers
 
 
 # TODO: To be implemented
@@ -28,32 +28,44 @@ def visualize_vit_pos_embeddings(emb: torch.Tensor,
     return fig
 
 
+HEIGHT = 384
+WIDTH = 384
+PATCH_SIZE = 16
+INPUT_DIM = 3
+HIDDEN_DIM = 1024
+N_CLASSES = 1000
+N_LAYERS = 24
+N_HEADS = 16
+MLP_DIM = 4096
+ATTENTION_DROPOUT = 0.0
+DROPOUT = 0.0
+REDUCTION = 'token'
+
+
 class ViT(nn.Module):
-    def __init__(self,
-                height: int = 384,
-                width: int = 384,
-                patch_size: int = 16,
-                input_dim: int = 3,
-                hidden_dim: int = 1024,
-                output_dim: int = 1000,
-                n_layers: int = 24,
-                n_heads: int = 16,
-                mlp_dim: int = 4096,
-                attention_dropout: float = 0.0,
-                dropout: float = 0.0,
-                reduction: str = 'token') -> None:
+    def __init__(self, data_config: Dict[str, Any], args: Optional[Namespace] = None) -> None:
         super().__init__()
-        self.height = height
-        self.width = width
-        self.patch_size = patch_size
+        args = vars(args) if args is not None else {}
+        self.height = data_config['height']
+        self.width = data_config['width']
+        self.patch_size = data_config['patch_size']
         if self.height % self.patch_size != 0 or self.width % self.patch_size != 0:
             err_msg = ('Image size should be divisible by patch size.\n',
                         f'Image size (hxw): ({self.height}x{self.width}), patch size: {self.patch_size}.')
             raise RuntimeError(err_msg)
         self.n_patches_h = self.height // self.patch_size
         self.n_patches_w = self.width // self.patch_size
-        self.n_patches = (self.height * self.width) // (self.patch_size * self.patch_size)
-        self.reduction = reduction
+        self.n_patches = self.n_patches_h * self.n_patches_w
+        self.reduction = args.get('vit_reduction', REDUCTION)
+
+        input_dim = args.get('vit_input_dim', INPUT_DIM)
+        hidden_dim = args.get('vit_hidden_dim', HIDDEN_DIM)
+        n_classes = args.get('vit_n_classes', N_CLASSES)
+        n_heads = args.get('vit_n_heads', N_HEADS)
+        n_layers = args.get('vit_n_layers', N_LAYERS)
+        mlp_dim = args.get('vit_mlp_dim', MLP_DIM)
+        attention_dropout = args.get('vit_attn_dropout', ATTENTION_DROPOUT)
+        dropout = args.get('vit_dropout', DROPOUT)
         
         self.patch_embedding = nn.Conv2d(
             input_dim,
@@ -73,10 +85,10 @@ class ViT(nn.Module):
             attention_dropout,
             dropout)
         self.encoded_norm = nn.LayerNorm(hidden_dim, eps=1e-6)
-        self.out = nn.Linear(hidden_dim, output_dim)
+        self.out = nn.Linear(hidden_dim, n_classes)
         torch.nn.init.zeros_(self.out.weight)
 
-    def interpolate_pos_embedding_(self, height: int, width: int) -> None:
+    def resize_pos_embedding_(self, height: int, width: int) -> None:
         n_patches_h = height // self.patch_size
         n_patches_w = width // self.patch_size
         pos_token, pos_grid = self.pos_embedding[:, 0:1], self.pos_embedding[:, 1:]
@@ -104,21 +116,74 @@ class ViT(nn.Module):
         x = self.out(x)
         return x
 
-def create_vit_from_json(path: Path) -> ViT:
-    with open(path, 'r') as json_file:
-        json_dict = json.load(json_file)
-        return ViT(**json_dict)
+    @staticmethod
+    def from_args(args: Namespace) -> 'ViT':
+        args = vars(args)
+        height = args.get('height', HEIGHT)
+        width = args.get('width', WIDTH)
+        patch_size = args.get('patch_size', PATCH_SIZE)
+        input_dim = args.get('vit_input_dim', INPUT_DIM)
+        hidden_dim = args.get('vit_hidden_dim', HIDDEN_DIM)
+        n_classes = args.get('vit_n_classes', N_CLASSES)
+        n_layers = args.get('vit_n_layers', N_LAYERS)
+        n_heads = args.get('vit_n_heads', N_HEADS)
+        mlp_dim = args.get('vit_mlp_dim', MLP_DIM)
+        attn_dropout = args.get('vit_attn_dropout', ATTENTION_DROPOUT)
+        dropout = args.get('vit_dropout', DROPOUT)
+        reduction = args.get('vit_reduction', REDUCTION)
+        return ViT(height, width, patch_size,
+                    input_dim, hidden_dim, n_classes,
+                    n_layers, n_heads, mlp_dim,
+                    attn_dropout, dropout, reduction)
 
-def create_vit_from_args(arguments: Namespace) -> ViT:
-    arguments = vars(arguments)
-    return ViT(**arguments)
+    @staticmethod
+    def from_parameters(height: int = 384,
+            width: int = 384,
+            patch_size: int = 16,
+            input_dim: int = 3,
+            hidden_dim: int = 1024,
+            n_classes: int = 1000,
+            n_layers: int = 24,
+            n_heads: int = 16,
+            mlp_dim: int = 4096,
+            attention_dropout: float = 0.0,
+            dropout: float = 0.0,
+            reduction: str = 'token') -> 'ViT':
+        args = Namespace(
+            vit_input_dim=input_dim,
+            vit_hidden_dim=hidden_dim,
+            vit_n_classes=n_classes,
+            vit_n_layers=n_layers,
+            vit_n_heads=n_heads,
+            vit_mlp_dim=mlp_dim,
+            vit_attn_dropout=attention_dropout,
+            vit_dropout=dropout,
+            vit_reduction=reduction)
+        data_config = {'height': height, 'width': width, 'patch_size': patch_size}
+        return ViT(data_config, args)
+        
 
-def get_vit_instance(source: Union[Namespace, Path, Dict[str]]) -> ViT:
-    if isinstance(source, Namespace):
-        return create_vit_from_args(source)
-    elif isinstance(source, Path):
-        return create_vit_from_json(source)
-    elif isinstance(source, dict):
-        return ViT(**source)
+    @staticmethod
+    def add_to_argparse(parser: ArgumentParser) -> None:
+        parser.add_argument('--vit_input_dim', type=int, default=INPUT_DIM)
+        parser.add_argument('--vit_hidden_dim', type=int, default=HIDDEN_DIM)
+        parser.add_argument('--vit_n_classes', type=int, default=N_CLASSES)
+        parser.add_argument('--vit_n_layers', type=int, default=N_LAYERS)
+        parser.add_argument('--vit_n_heads', type=int, default=N_HEADS)
+        parser.add_argument('--vit_mlp_dim', type=int, default=MLP_DIM)
+        parser.add_argument('--vit_attn_dropout', type=float, default=ATTENTION_DROPOUT)
+        parser.add_argument('--vit_dropout', type=float, default=DROPOUT)
+        parser.add_argument('--vit_reduction', type=str, default=REDUCTION,
+            help='How to compute final probabilities, using zero-token (token) or by taking average along all features (mean)')
+
+
+def get_vit_instance(vit_model: str = 'vit_l_16', path_to_model: Optional[Path] = None) -> ViT:
+    if path_to_model is None:
+        path_to_model = Path(__file__).resolve().parents[2] / 'models' / f'{vit_model}.pt'
+    if vit_mlp_dim == 'vit_l_16':
+        model = ViT.from_parameters(384, 384)
+        state_dict = torch.load_state_dict(str(path_to_model), map_location='cpu')
+        model.load_state_dict(state_dict)
+        return model
     else:
-        raise ArgumentError('Argument should be of type Path, Namespace or Dict[str]')
+        raise NotImplementedError(f'Not implemented factory for model: {vit_model}')
