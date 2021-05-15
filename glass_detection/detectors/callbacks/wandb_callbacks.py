@@ -26,6 +26,7 @@ def convert_labels_to_colors(labels: np.ndarray, palette: np.ndarray) -> np.ndar
 class ImageCallback(pl.Callback):
     def __init__(self, args: Namespace, num_read: int = 3) -> None:
         super(ImageCallback, self).__init__()
+        args = vars(args)
         self.height = args.get('height')
         self.width = args.get('width')
         self.data_folder = Path(args.get('data_folder'))
