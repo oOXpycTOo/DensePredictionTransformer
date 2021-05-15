@@ -1,6 +1,7 @@
+from typing import List
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class SelfAttention(nn.Module):
@@ -165,7 +166,6 @@ class ResidualConvUnit(nn.Module):
             self.bn_1 = nn.BatchNorm2d(dim)
             self.bn_2 = nn.BatchNorm2d(dim)
 
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.relu(x)
         out = self.conv_1(out)
@@ -186,7 +186,6 @@ class FeatureFusionBlock(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
         self.project = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
 
-
     def forward(self, *x: List[torch.Tensor]) -> torch.Tensor:
         out = x[0]
         if len(x) > 1:
@@ -205,7 +204,7 @@ class Reassemble(nn.Module):
                 scale: float,
                 redout_type: str = 'proj') -> None:
         super().__init__()
-        self.redout_converter = get_redout_converter(redout_type, hidden_dim=input_dim)
+        self.redout_converter = get_readout_converter(redout_type, hidden_dim=input_dim)
         self.concat = Concatenate(n_patches_h, n_patches_w)
         self.resample = Resample(input_dim, output_dim, scale)
 
@@ -216,8 +215,10 @@ class Reassemble(nn.Module):
         return self.resample(x)
 
 
-def get_redout_converter(converter_type: str, *args, **kwargs):
-    CONVERTERS = {'ignore': IgnoreRedoutConverter, 'add': AddRedoutConverter, 'proj': MLPProjRedoutConverter}
+CONVERTERS = {'ignore': IgnoreRedoutConverter, 'add': AddRedoutConverter, 'proj': MLPProjRedoutConverter}
+
+
+def get_readout_converter(converter_type: str, *args, **kwargs):
     return CONVERTERS[converter_type](*args, **kwargs)
 
 

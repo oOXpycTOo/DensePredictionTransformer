@@ -1,14 +1,12 @@
-from argparse import ArgumentError, ArgumentParser, Namespace
-import json
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional
 
 import matplotlib.pyplot as plt
 import torch
-from torch.functional import align_tensors
 import torch.nn as nn
 
-from .util import TransformerLayer, SelfAttention, get_transformer_layers
+from .util import get_transformer_layers
 
 
 # TODO: To be implemented
@@ -57,9 +55,10 @@ class ViT(nn.Module):
         self.n_patches_w = self.width // self.patch_size
         self.n_patches = self.n_patches_h * self.n_patches_w
         self.reduction = args.get('vit_reduction', REDUCTION)
+        self.hidden_dim = args.get('vit_hidden_dim', HIDDEN_DIM)
+
 
         input_dim = args.get('vit_input_dim', INPUT_DIM)
-        hidden_dim = args.get('vit_hidden_dim', HIDDEN_DIM)
         n_classes = args.get('vit_n_classes', N_CLASSES)
         n_heads = args.get('vit_n_heads', N_HEADS)
         n_layers = args.get('vit_n_layers', N_LAYERS)
@@ -69,23 +68,23 @@ class ViT(nn.Module):
         
         self.patch_embedding = nn.Conv2d(
             input_dim,
-            hidden_dim,
+            self.hidden_dim,
             kernel_size=self.patch_size,
             stride=self.patch_size)
         self.pos_embedding = nn.Parameter(
-            torch.randn(1, self.n_patches + 1, hidden_dim))
+            torch.randn(1, self.n_patches + 1, self.hidden_dim))
         self.class_embedding = nn.Parameter(
-            torch.zeros(1, 1, hidden_dim))
+            torch.zeros(1, 1, self.hidden_dim))
         self.embedding_dropout = nn.Dropout(dropout)
         self.transformer_layers = get_transformer_layers(
             n_layers,
-            hidden_dim,
+            self.hidden_dim,
             n_heads,
             mlp_dim,
             attention_dropout,
             dropout)
-        self.encoded_norm = nn.LayerNorm(hidden_dim, eps=1e-6)
-        self.out = nn.Linear(hidden_dim, n_classes)
+        self.encoded_norm = nn.LayerNorm(self.hidden_dim, eps=1e-6)
+        self.out = nn.Linear(self.hidden_dim, n_classes)
         torch.nn.init.zeros_(self.out.weight)
 
     def resize_pos_embedding_(self, height: int, width: int) -> None:
@@ -117,26 +116,6 @@ class ViT(nn.Module):
         return x
 
     @staticmethod
-    def from_args(args: Namespace) -> 'ViT':
-        args = vars(args)
-        height = args.get('height', HEIGHT)
-        width = args.get('width', WIDTH)
-        patch_size = args.get('patch_size', PATCH_SIZE)
-        input_dim = args.get('vit_input_dim', INPUT_DIM)
-        hidden_dim = args.get('vit_hidden_dim', HIDDEN_DIM)
-        n_classes = args.get('vit_n_classes', N_CLASSES)
-        n_layers = args.get('vit_n_layers', N_LAYERS)
-        n_heads = args.get('vit_n_heads', N_HEADS)
-        mlp_dim = args.get('vit_mlp_dim', MLP_DIM)
-        attn_dropout = args.get('vit_attn_dropout', ATTENTION_DROPOUT)
-        dropout = args.get('vit_dropout', DROPOUT)
-        reduction = args.get('vit_reduction', REDUCTION)
-        return ViT(height, width, patch_size,
-                    input_dim, hidden_dim, n_classes,
-                    n_layers, n_heads, mlp_dim,
-                    attn_dropout, dropout, reduction)
-
-    @staticmethod
     def from_parameters(height: int = 384,
             width: int = 384,
             patch_size: int = 16,
@@ -161,7 +140,6 @@ class ViT(nn.Module):
             vit_reduction=reduction)
         data_config = {'height': height, 'width': width, 'patch_size': patch_size}
         return ViT(data_config, args)
-        
 
     @staticmethod
     def add_to_argparse(parser: ArgumentParser) -> None:
@@ -179,10 +157,10 @@ class ViT(nn.Module):
 
 def get_vit_instance(vit_model: str = 'vit_l_16', path_to_model: Optional[Path] = None) -> ViT:
     if path_to_model is None:
-        path_to_model = Path(__file__).resolve().parents[2] / 'models' / f'{vit_model}.pt'
-    if vit_mlp_dim == 'vit_l_16':
+        path_to_model = Path(__file__).resolve().parents[3] / 'models' / f'{vit_model}.pt'
+    if vit_model == 'vit_l_16':
         model = ViT.from_parameters(384, 384)
-        state_dict = torch.load_state_dict(str(path_to_model), map_location='cpu')
+        state_dict = torch.load(str(path_to_model), map_location='cpu')
         model.load_state_dict(state_dict)
         return model
     else:

@@ -21,6 +21,7 @@ N_CLASSES = 150
 
 class DensePredictionTransformer(nn.Module):
     LAYER_ACTIVATIONS = []
+
     def __init__(self, data_config: Dict[str, Any], args: Namespace = None):
         super().__init__()
         args = vars(args) if args is not None else {}
@@ -28,13 +29,13 @@ class DensePredictionTransformer(nn.Module):
         height = data_config['height']
         width = data_config['width']
         patch_size = data_config['patch_size']
-        vit_model = args.get('vit_model', default=VIT_MODEL)
+        n_classes = data_config['n_classes']
+        vit_model = args.get('vit_model', VIT_MODEL)
         hook_layers = args.get('dpt_hook_layers', HOOK_LAYERS)
         features = args.get('dpt_features', FEATURES)
         redout_type = args.get('dpt_redout_type', REDOUT_TYPE)
-        bn_fusion_layers = args.get('dpt_bn_fusion_layers', BN_FUSION_LAYERS)
+        use_bn_in_fusion_layers = args.get('dpt_bn_fusion_layers', BN_FUSION_LAYERS)
         hidden_dim = args.get('dpt_hidden_dim', HIDDEN_DIM)
-        n_classes = args.get('dpt_n_classes', N_CLASSES)
 
         self.backbone = self.__setup_backbone(vit_model, height, width)
         self.__register_backbone_hooks(hook_layers)
@@ -43,7 +44,12 @@ class DensePredictionTransformer(nn.Module):
         scales = [4, 2, 1, 1/2.]  # TODO: Fix this hardcode
 
         self.reassemble_layers =\
-            self.__get_reassemble_layers(n_patches_h, n_patches_w, self.backbone.hidden_dim, features, scales, redout_type)
+            self.__get_reassemble_layers(n_patches_h,
+                                         n_patches_w,
+                                         self.backbone.hidden_dim,
+                                         features,
+                                         scales,
+                                         redout_type)
         self.fusion_maps, self.fusion_layers =\
             self.__get_fusion_layers(hidden_dim, features, scales, use_bn_in_fusion_layers)
 
@@ -57,7 +63,7 @@ class DensePredictionTransformer(nn.Module):
         )
 
     def __setup_backbone(self, backbone_type: str, height: int, width: int) -> 'ViT':
-        model = get_vit_instance(backbone_type, pretrained=True)
+        model = get_vit_instance(backbone_type)
         model.resize_pos_embedding_(height, width)
         model.eval()
         model.requires_grad_(False)
@@ -116,25 +122,24 @@ class DensePredictionTransformer(nn.Module):
             features: List[str] = FEATURES,
             bn_fusion_layers: bool = BN_FUSION_LAYERS,
             vit_model: str = VIT_MODEL) -> 'DensePredictionTransformer':
-        args = Namespace(dpt_n_classes=n_classes,
+        args = Namespace(
             dpt_hidden_dim=hidden_dim,
             dpt_redout_type=redout_type,
             dpt_hook_layers=hook_layers,
             dpt_features=features,
             dpt_bn_fusion_layers=bn_fusion_layers,
             vit_model=VIT_MODEL)
-        data_config = {'height': height, 'width': width, 'patch_size': patch_size}
+        data_config = {'height': height, 'width': width, 'patch_size': patch_size, 'n_classes': n_classes}
         return DensePredictionTransformer(data_config, args)
 
     @staticmethod
     def add_to_argparse(parser: ArgumentParser) -> None:
-        parser.add_argument('--dpt_n_classes', type=int, default=N_CLASSES)
         parser.add_argument('--dpt_hidden_dim', type=int, default=HIDDEN_DIM)
         parser.add_argument('--dpt_redout_type', type=str, default=REDOUT_TYPE,
             help='Which redout function to use [ignore|add|proj] to handle zero token and its interation with other pos tokens.')
         parser.add_argument('--dpt_hook_layers', type=int, nargs='+', default=HOOK_LAYERS)
         parser.add_argument('--dpt_features', type=int, nargs='+', default=FEATURES)
-        parser.add_argument('--dpt_bn_fusion_layers', type=bool, action='store_false')
+        parser.add_argument('--dpt_bn_fusion_layers', action='store_false', default=True)
         parser.add_argument('--vit_model', type=str, default=VIT_MODEL)
 
 
