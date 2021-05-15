@@ -41,6 +41,12 @@ class GlassSegmentationDataset(BaseDataset):
         mask_filename = self.targets[idx]
         image = cv2.imread(image_filename)
         mask = cv2.imread(mask_filename)
+        mask = convert_colors_to_labels(mask, self.palette)
+        return self.transfrom(image), self.target_transform(mask)
 
-def convert_color_to_classes(mask: np.ndarray, palette: np.ndarray) -> np.ndarray:
-    
+def convert_colors_to_labels(mask: np.array, palette: np.array) -> np.array:
+    mask [h, w, 3]
+    palette [n_cl, 3]
+    difference = np.sum(np.abs(mask[:, :, None] - palette[None, None]), dim=3)
+    labels = np.argmin(difference, dim=2)
+    return labels
