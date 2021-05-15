@@ -11,6 +11,7 @@ OPTIMIZER = 'Adam'
 LR = 1e-3
 LOSS = 'cross_entropy'
 ONE_CYCLE_TOTAL_STEPS = 100
+N_CLASSES = 5
 
 
 class MeanAveragePrecision(AveragePrecision):
@@ -27,7 +28,7 @@ class MeanAveragePrecision(AveragePrecision):
             process_group=process_group
         )
 
-    def compute(self) -> Tensor:
+    def compute(self) -> torch.Tensor:
         avg_precision = super().compute()
         return torch.mean(torch.Tensor(avg_precision))
 
@@ -53,9 +54,10 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         self.one_cycle_max_lr = self.args.get('one_cycle_max_lr', None)
         self.one_cycle_total_steps = self.args.get('one_cycle_total_steps', ONE_CYCLE_TOTAL_STEPS)
 
-        self.train_map = MeanAveragePrecision()
-        self.val_map = MeanAveragePrecision()
-        self.test_map = MeanAveragePrecision()
+        num_classes = self.args.get('n_classes', N_CLASSES)
+        self.train_map = MeanAveragePrecision(num_classes)
+        self.val_map = MeanAveragePrecision(num_classes)
+        self.test_map = MeanAveragePrecision(num_classes)
 
     @staticmethod
     def add_to_argparse(parser):
