@@ -1,10 +1,12 @@
 """Base data module class with utilities"""
-from pathlib import Path
-from typing import Collection
 import argparse
+from pathlib import Path
+from typing import Tuple, Union
 
-from torch.utils.data import ConcatDataset, DataLoader
 import pytorch_lightning as pl
+from torch.utils.data import ConcatDataset, DataLoader
+
+from .base_dataset import BaseDataset
 
 
 BATCH_SIZE=128
@@ -28,7 +30,7 @@ class BaseDataModule(pl.LightningDataModule):
 
     @classmethod
     def data_dirname(cls):
-        return Path(__file__).resolve().parents[2] / 'data'
+        return Path(__file__).resolve().parents[3] / 'data'
 
     @staticmethod
     def add_to_argparse(parser):
@@ -41,11 +43,13 @@ class BaseDataModule(pl.LightningDataModule):
         return parser
 
     def config(self):
-        return {'input_dims': self.input_dims, 'output_dims': self.output_dims}
+        return {'input_dims': self.dims, 'output_dims': self.output_dims}
 
     def prepare_data(self, *args, **kwargs) -> None:
+        pass
 
     def setup(self, *args, **kwargs) -> None:
+        pass
 
     def train_dataloader(self):
         return DataLoader(

@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-from typing import Any, Callable, Tuple
+from typing import Any, Callable
 
 
 class BaseDataset(Dataset):
@@ -16,3 +16,4 @@ class BaseDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int) -> Any:
+        pass

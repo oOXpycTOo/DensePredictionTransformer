@@ -1,4 +1,4 @@
-import json
+import os
 from pathlib import Path
 from typing import Callable, List, Tuple
 
@@ -6,47 +6,40 @@ import cv2
 import numpy as np
 import torch
 
-from glass_detection.detectors.data.base_dataset import BaseDataset
+from .base_dataset import BaseDataset
 
 
 class GlassSegmentationDataset(BaseDataset):
-    def __init__(self, data_folder: Path, transform: Callable, target_transform: Callable) -> None:
-        super().__init__(transform, target_transform)
-        parent_folder = data_folder.parents[0]
-        self.classes, self.palette = self.__parse_metadata(parent_folder)
-        self.image_folder = self.data_folder / 'images'
-        self.mask_folder = self.data_folder / 'masks'
-        self.data = self.__read_files_from_folder(self.image_folder)
-        self.targets = self.__read_files_from_folder(self.mask_folder)
-
-    def __parse_metadata(self, folder: Path) -> Tuple[List[str], np.ndarray]:
-        with open(folder / 'metadata.json') as metafile:
-            metadata = json.load(metafile)
-        classes = []
-        palette = []
-        for classname, color in metadata.items():
-            classes.append(classname)
-            palette.append(color[])
-        return classes, np.array(palette)[:, ::-1]
-
-    def __read_files_from_folder(self, folder: Path) -> List[str]:
-        filenames = []
-        for filename in self.image_folder.iterdir():
-            if filename.is_file():
-                filenames.append(str(filename))
-        return filenames
+    def __init__(self, data_folder: Path,
+                 files: List[str],
+                 classes: List[str],
+                 palette: np.array,
+                 transform: Callable) -> None:
+        super().__init__(transform)
+        self.classes = classes
+        self.palette = palette
+        self.image_folder = data_folder / 'images'
+        self.mask_folder = data_folder / 'masks'
+        self.data = files
+        masks_files = set(os.listdir(self.mask_folder))
+        self.targets = [file if file in masks_files else '' for file in files]
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         image_filename = self.data[idx]
         mask_filename = self.targets[idx]
-        image = cv2.imread(image_filename)
-        mask = cv2.imread(mask_filename)
+        image = cv2.imread(str(self.image_folder / image_filename))
+        if mask_filename:
+            mask = cv2.imread(str(self.mask_folder / mask_filename))
+        else:
+            mask = np.zeros_like(image)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
         mask = convert_colors_to_labels(mask, self.palette)
-        return self.transfrom(image), self.target_transform(mask)
+        transformed = self.transform(image=image, mask=mask)
+        return transformed['image'], transformed['mask'].long()
+
 
 def convert_colors_to_labels(mask: np.array, palette: np.array) -> np.array:
-    mask [h, w, 3]
-    palette [n_cl, 3]
-    difference = np.sum(np.abs(mask[:, :, None] - palette[None, None]), dim=3)
-    labels = np.argmin(difference, dim=2)
+    difference = np.sum(np.abs(mask[:, :, None] - palette[None, None]), axis=3)
+    labels = np.argmin(difference, axis=2)
     return labels
