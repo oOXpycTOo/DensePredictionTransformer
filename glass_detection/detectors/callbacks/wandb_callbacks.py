@@ -58,16 +58,19 @@ class ImageCallback(pl.Callback):
             mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
             images.append(image)
             masks.append(mask)
-        return np.array(images), np.array(masks)
+        return images, masks
 
     def on_validation_epoch_end(self, trainer: 'pl.Trainer', pl_module: 'pl.LightningModule') -> None:
         examples = []
         for i in range(self.num_read):
-            image = self.transform(self.images[i])
-            image = torch.tensor(image, device=pl_module.device).unsqueeze(0)
+            transformed = self.transform(image=self.images[i], mask=self.masks[i])
+            image = transformed['image'].unsqueeze(0).to(pl_module.device)
+            mask = transformed['mask'].permute(2, 0, 1).cpu().numpy()
             preds = pl_module(image)
             pred_label = torch.argmax(preds, 1)[0].detach().cpu().numpy()
             pred_color = convert_labels_to_colors(pred_label, self.palette)
-            result = np.hstack([self.images[i], self.masks[i], pred_color])
+            image = (image * 0.5) + 0.5
+            image = image[0].permute(2, 0, 1).detach().cpu().numpy()
+            result = np.hstack([image, mask / 255., pred_color / 255.])
             examples.append(wandb.Image(result, caption='Image, True, Predicted'))
         trainer.logger.experiment.log({'val_results': examples})
