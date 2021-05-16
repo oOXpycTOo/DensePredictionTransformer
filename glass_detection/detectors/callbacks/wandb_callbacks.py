@@ -29,9 +29,9 @@ class ImageCallback(pl.Callback):
     def __init__(self, args: Namespace, num_read: int = 3) -> None:
         super(ImageCallback, self).__init__()
         args = vars(args)
-        self.height = args.get('height', 384)
-        self.width = args.get('width', 384)
-        self.data_folder = Path(args.get('data_folder'), DEFAULT_DIR)
+        self.height = args.get('height')
+        self.width = args.get('width')
+        self.data_folder = Path(args.get('data_folder', DEFAULT_DIR))
         with open(self.data_folder / 'metainfo.json') as file:
             metainfo = json.load(file)
         self.palette = np.array(metainfo['palette'])
@@ -49,7 +49,6 @@ class ImageCallback(pl.Callback):
         masks = []
         selected = np.random.choice(files, self.num_read, replace=False)
         for filename in selected:
-            filename = filename[:-4]
             image = cv2.imread(str(self.data_folder / 'images' / f'{filename}.jpg'))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mask_path = str(self.data_folder / 'masks' / f'{filename}.png')
