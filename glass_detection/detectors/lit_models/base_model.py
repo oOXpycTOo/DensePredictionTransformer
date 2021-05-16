@@ -59,8 +59,8 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
             self.loss_fn = DiceLoss()
         elif loss == 'tversky':
             self.loss_fn = TverskyLoss(0.3, 0.7)  # Try to give more weight to FN
-        else:
-            self.loss_fn = getattr(torch.nn, loss)
+        elif loss == 'cross_entropy':
+            self.loss_fn = torch.nn.CrossEntropyLoss()
 
         self.one_cycle_max_lr = self.args.get('one_cycle_max_lr', None)
         self.one_cycle_total_steps = self.args.get('one_cycle_total_steps', ONE_CYCLE_TOTAL_STEPS)
