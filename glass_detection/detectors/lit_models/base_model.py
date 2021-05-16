@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import torch
 from torchmetrics import AveragePrecision, IoU
 
-from kornia.losses import focal_loss
+from kornia.losses import FocalLoss
 
 
 # Define default CMD arguments
@@ -54,7 +54,7 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
 
         loss = self.args.get('loss', LOSS)
         if loss == 'focal':
-            self.loss_fn = lambda inputs, targets: focal_loss(inputs, targets, reduction='mean', alpha=1.)
+            self.loss_fn = FocalLoss(alpha=1.0, gamma=1.0, reduction='mean')
         else:
             self.loss_fn = getattr(torch.nn.functional, loss)
 
