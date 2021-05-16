@@ -6,7 +6,6 @@ import torch
 from torchmetrics import AveragePrecision, IoU
 
 from kornia.losses import FocalLoss, DiceLoss, TverskyLoss
-torch.Cros
 
 
 # Define default CMD arguments
