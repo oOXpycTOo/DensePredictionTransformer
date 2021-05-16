@@ -6,6 +6,7 @@ import torch
 from torchmetrics import AveragePrecision, IoU
 
 from kornia.losses import FocalLoss, DiceLoss, TverskyLoss
+torch.Cros
 
 
 # Define default CMD arguments
@@ -60,7 +61,7 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         elif loss == 'tversky':
             self.loss_fn = TverskyLoss(0.3, 0.7)  # Try to give more weight to FN
         else:
-            self.loss_fn = getattr(torch.nn.functional, loss)
+            self.loss_fn = getattr(torch.nn, loss)
 
         self.one_cycle_max_lr = self.args.get('one_cycle_max_lr', None)
         self.one_cycle_total_steps = self.args.get('one_cycle_total_steps', ONE_CYCLE_TOTAL_STEPS)
