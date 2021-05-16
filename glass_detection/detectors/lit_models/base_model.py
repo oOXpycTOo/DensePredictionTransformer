@@ -3,7 +3,9 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from torchmetrics import AveragePrecision
+from torchmetrics import AveragePrecision, IoU
+
+from kornia.losses import focal_loss
 
 
 # Define default CMD arguments
@@ -51,15 +53,18 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         self.lr = self.args.get('lr', LR)
 
         loss = self.args.get('loss', LOSS)
-        self.loss_fn = getattr(torch.nn.functional, loss)
+        if loss == 'focal':
+            self.loss_fn = lambda inputs, targets: focal_loss(inputs, targets, reduction='mean', alpha=1.)
+        else:
+            self.loss_fn = getattr(torch.nn.functional, loss)
 
         self.one_cycle_max_lr = self.args.get('one_cycle_max_lr', None)
         self.one_cycle_total_steps = self.args.get('one_cycle_total_steps', ONE_CYCLE_TOTAL_STEPS)
 
         num_classes = self.args.get('n_classes', N_CLASSES)
-        self.train_map = MeanAveragePrecision(num_classes)
-        self.val_map = MeanAveragePrecision(num_classes)
-        self.test_map = MeanAveragePrecision(num_classes)
+        self.train_iou = IoU(num_classes)
+        self.val_iou = IoU(num_classes)
+        self.test_iou = IoU(num_classes)
 
     @staticmethod
     def add_to_argparse(parser):
@@ -95,12 +100,12 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         loss = self.loss_fn(logits, y)
         probs = torch.softmax(logits, dim=1)
         self.log('val_loss', loss, prog_bar=True)
-        self.val_map(probs, y)
-        self.log('val_mAP', self.val_map, on_step=False, on_epoch=True, prog_bar=True)
+        self.val_iou(probs, y)
+        self.log('val_IoU', self.val_iou, on_step=False, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):  # pylint: disable=unused-argument
         x, y = batch
         logits = self(x)
         probs = torch.softmax(logits, dim=1)
-        self.test_map(probs, y)
-        self.log('test_mAP', self.test_map, on_step=False, on_epoch=True, prog_bar=True)
+        self.test_iou(probs, y)
+        self.log('test_IoU', self.test_iou, on_step=False, on_epoch=True, prog_bar=True)

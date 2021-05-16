@@ -12,6 +12,8 @@ import pytorch_lightning as pl
 import torch
 import wandb
 
+DEFAULT_DIR = Path(__file__).resolve().parents[3] / 'data'
+
 
 def convert_colors_to_labels(mask: np.ndarray, palette: np.ndarray) -> np.ndarray:
     difference = np.sum(np.abs(mask[:, :, None] - palette[None, None]), axis=3)
@@ -27,9 +29,9 @@ class ImageCallback(pl.Callback):
     def __init__(self, args: Namespace, num_read: int = 3) -> None:
         super(ImageCallback, self).__init__()
         args = vars(args)
-        self.height = args.get('height')
-        self.width = args.get('width')
-        self.data_folder = Path(args.get('data_folder'))
+        self.height = args.get('height', 384)
+        self.width = args.get('width', 384)
+        self.data_folder = Path(args.get('data_folder'), DEFAULT_DIR)
         with open(self.data_folder / 'metainfo.json') as file:
             metainfo = json.load(file)
         self.palette = np.array(metainfo['palette'])
@@ -65,12 +67,12 @@ class ImageCallback(pl.Callback):
         for i in range(self.num_read):
             transformed = self.transform(image=self.images[i], mask=self.masks[i])
             image = transformed['image'].unsqueeze(0).to(pl_module.device)
-            mask = transformed['mask'].permute(2, 0, 1).cpu().numpy()
+            mask = transformed['mask'].cpu().numpy()
             preds = pl_module(image)
             pred_label = torch.argmax(preds, 1)[0].detach().cpu().numpy()
             pred_color = convert_labels_to_colors(pred_label, self.palette)
             image = (image * 0.5) + 0.5
-            image = image[0].permute(2, 0, 1).detach().cpu().numpy()
+            image = image[0].permute(1, 2, 0).detach().cpu().numpy()
             result = np.hstack([image, mask / 255., pred_color / 255.])
             examples.append(wandb.Image(result, caption='Image, True, Predicted'))
         trainer.logger.experiment.log({'val_results': examples})
