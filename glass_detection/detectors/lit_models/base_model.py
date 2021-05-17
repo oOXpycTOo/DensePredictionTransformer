@@ -102,14 +102,13 @@ class BaseLitModel(pl.LightningModule):  # pylint: disable=too-many-ancestors
         x, y = batch
         logits = self(x)
         loss = self.loss_fn(logits, y)
-        probs = torch.softmax(logits, dim=1)
+        probs = torch.softmax(logits.detach().cpu(), dim=1)
         self.log('val_loss', loss, prog_bar=True)
-        self.val_iou(probs, y)
+        self.val_iou(probs, y.detach().cpu())
         self.log('val_IoU', self.val_iou, on_step=False, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):  # pylint: disable=unused-argument
         x, y = batch
-        logits = self(x)
-        probs = torch.softmax(logits, dim=1)
+        probs = torch.softmax(self(x), dim=1)
         self.test_iou(probs, y)
         self.log('test_IoU', self.test_iou, on_step=False, on_epoch=True, prog_bar=True)

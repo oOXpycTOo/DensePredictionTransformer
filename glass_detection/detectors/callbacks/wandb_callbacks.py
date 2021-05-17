@@ -63,15 +63,16 @@ class ImageCallback(pl.Callback):
 
     def on_validation_epoch_end(self, trainer: 'pl.Trainer', pl_module: 'pl.LightningModule') -> None:
         examples = []
-        for i in range(self.num_read):
-            transformed = self.transform(image=self.images[i], mask=self.masks[i])
-            image = transformed['image'].unsqueeze(0).to(pl_module.device)
-            mask = transformed['mask'].cpu().numpy()
-            preds = pl_module(image)
-            pred_label = torch.argmax(preds, 1)[0].detach().cpu().numpy()
-            pred_color = convert_labels_to_colors(pred_label, self.palette)
-            image = (image * 0.5) + 0.5
-            image = image[0].permute(1, 2, 0).detach().cpu().numpy()
-            result = np.hstack([image, mask / 255., pred_color / 255.])
-            examples.append(wandb.Image(result, caption='Image, True, Predicted'))
-        trainer.logger.experiment.log({'val_results': examples})
+        with torch.no_grad():
+            for i in range(self.num_read):
+                transformed = self.transform(image=self.images[i], mask=self.masks[i])
+                image = transformed['image'].unsqueeze(0).to(pl_module.device)
+                mask = transformed['mask'].cpu().numpy()
+                preds = pl_module(image)
+                pred_label = torch.argmax(preds, 1)[0].detach().cpu().numpy()
+                pred_color = convert_labels_to_colors(pred_label, self.palette)
+                image = (image * 0.5) + 0.5
+                image = image[0].permute(1, 2, 0).detach().cpu().numpy()
+                result = np.hstack([image, mask / 255., pred_color / 255.])
+                examples.append(wandb.Image(result, caption='Image, True, Predicted'))
+            trainer.logger.experiment.log({'val_results': examples})
