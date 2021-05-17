@@ -27,8 +27,8 @@ class GlassSegmentationDataModule(BaseDataModule):
     def __init__(self, args: argparse.Namespace) -> None:
         super().__init__(args)
         self.data_folder = Path(self.args.get('data_folder', DATA_FOLDER))
-        self.height = self.args.get('image_height', IMG_HEIGHT)
-        self.width = self.args.get('image_width', IMG_WIDTH)
+        self.height = self.args.get('height', IMG_HEIGHT)
+        self.width = self.args.get('width', IMG_WIDTH)
         self.patch_size = self.args.get('patch_size', PATCH_SIZE)
         self.n_classes = self.args.get('n_classes', N_CLASSES)
         self.dims = (3, self.height, self.width)
@@ -54,9 +54,9 @@ class GlassSegmentationDataModule(BaseDataModule):
     @staticmethod
     def add_to_argparse(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         BaseDataModule.add_to_argparse(parser)
-        parser.add_argument('--image_height', type=int, default=IMG_HEIGHT,
+        parser.add_argument('--height', type=int, default=IMG_HEIGHT,
             help='Image height to be used for training and validation')
-        parser.add_argument('--image_width', type=int, default=IMG_WIDTH,
+        parser.add_argument('--width', type=int, default=IMG_WIDTH,
             help='Image width to be used for training and validation')
         parser.add_argument('--patch_size', type=int, default=PATCH_SIZE,
             help='Patch size to be used for image split')
